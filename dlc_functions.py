@@ -664,7 +664,7 @@ def normalise_and_track(all_data,traj_part,succ_extra_time,all_frame_times,exclu
             distances = get_distances(all_data,all_avg_norm_medians)
             dlc_data_scaled = dlc_data_norm.copy()
             dlc_data_scaled.loc[:,(traj_part,'x')] = (dlc_data_norm['head']['x'] * distances.loc[distances['files'] == tag].scale_factor_x[0])
-            dlc_data_scaled.loc[:,(traj_part,'y')] = (dlc_data_norm['head']['y'] * distances.loc[distances['files'] == tag].scale_factor_y[0])
+            #dlc_data_scaled.loc[:,(traj_part,'y')] = (dlc_data_norm['head']['y'] * distances.loc[distances['files'] == tag].scale_factor_y[0])
 
             if restrict_traj:
                 trajy = dlc_data_norm[traj_part].y.copy()
