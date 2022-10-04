@@ -59,10 +59,15 @@ all_beh_data = pickle.load(open (session_file_path , 'rb'))
 all_trial_data = pickle.load(open (all_trials_path , 'rb')) 
 all_beh_data['veh'] =all_beh_data.pop('VEH') 
 all_trial_data[0].session = all_trial_data[0].session.replace({'VEH':'veh'})
+mod_outcome = [all_trial_data[0].iloc[x]['outcome'] +' single' if all_trial_data[0].iloc[x]['trial type'] == 'NG Single Cue' 
+               else all_trial_data[0].iloc[x]['outcome'] + ' double' if all_trial_data[0].iloc[x]['trial type'] == 'NG Double Cue'
+               else all_trial_data[0].iloc[x]['outcome'] for x in all_trial_data[0].index]
+all_trial_data[0].loc[:,'outcome'] = mod_outcome
 #dlc file informaiton 
 dlc_file_path = 'C:/Users/George/OneDrive - Nexus365/Documents/GNG - ABD/dlc analysis test dlc files'
 
 all_data = dlc_func.get_beh_dlc_data(session_list, subject_list,all_beh_data,all_trial_data,dlc_file_path)   
+
 #%% ffmpeg timeframe exdtraction and avg brightness data
 
 
@@ -143,10 +148,10 @@ if check_frames == 'yes':
 #~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.
 #~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.
 
-trials_to_analyse = ['go1_succ','go1_rtex']#, 'go1_wronglp','go2_succ', 'go2_rtex', 'go2_wronglp']
+trials_to_analyse =['ng1_succ','ng1_fail']# 'go1_wronglp','go2_succ', 'go2_rtex', 'go2_wronglp']
 sessions_to_analyse = ['veh','1mg','10mg']
  
-all_traj_by_trial, all_nose_nan_perc_trials, all_head_nan_perc_trials = dlc_func.collect_traj_by_trialtype(trials_to_analyse,sessions_to_analyse,all_data,all_mismatched_files,scaled = False)
+#all_traj_by_trial, all_nose_nan_perc_trials, all_head_nan_perc_trials = dlc_func.collect_traj_by_trialtype(trials_to_analyse,sessions_to_analyse,all_data,all_mismatched_files,scaled = False)
                
 scaled_all_traj_by_trial, all_nose_nan_perc_trials, all_head_nan_perc_trials = dlc_func.collect_traj_by_trialtype(trials_to_analyse,sessions_to_analyse,all_data,all_mismatched_files,scaled = True)
 
@@ -154,13 +159,13 @@ avg_all_norm_medians = dlc_func.get_avg_norm_medians(all_data)
 
 
 #%%
-trials_to_plot = ['go1_succ','go1_rtex']#, 'go1_wronglp','go2_succ', 'go2_rtex', 'go2_wronglp']# 'go1_wronglp','go2_succ', 'go2_rtex', 'go2_wronglp']
+trials_to_plot = ['ng1_succ','ng1_fail']#, 'go1_wronglp','go2_succ', 'go2_rtex', 'go2_wronglp']# 'go1_wronglp','go2_succ', 'go2_rtex', 'go2_wronglp']
 sessions_to_plot = ['veh','1mg','10mg']#['veh','1mg','10mg']
 traj_part = 'head'
 
 by_subject = True
-subj_to_plot =[ 'rat10','rat12','rat24','rat05']
-dlc_func.plot_trajectories(trials_to_plot, sessions_to_plot,traj_part,all_traj_by_trial,avg_all_norm_medians,subj_to_plot,by_subject)
+subj_to_plot ='all'
+dlc_func.plot_trajectories(trials_to_plot, sessions_to_plot,traj_part,scaled_all_traj_by_trial,avg_all_norm_medians,subj_to_plot,by_subject)
 
 
 #%% individual trial plotting
@@ -184,7 +189,7 @@ dlc_func.plot_indv_trajectories(trials_to_plot, sessions_to_plot,animals_to_plot
 #%%%
 
 #%% PDF - heat maaps
-n_bins = 18
+n_bins = 9
 
 all_pdfs = {}
 for tt in trials_to_plot:
@@ -216,31 +221,124 @@ for tt in all_pdfs.keys():
 
 #%%
 
-trial_pdf ={}
+trials_to_plot = ['go1_succ','go1_rtex']
+sessions_to_plot = ['veh','1mg','10mg']
+for tt in trials_to_plot:
+    print(tt)
+    trial_type_data= scaled_all_traj_by_trial[tt]
+    session_pdfs = {}
+    for s in sessions_to_plot:
+        print(s)
+        session_data = trial_type_data[s]
+        indv_subjs = ['rat' + x.split('rat',1)[1][0:2] for x in session_data.keys()]
+        indv_subjs_set = set(indv_subjs)
+        subj_pdf ={}
+        for subj in indv_subjs_set:
+            trial_pdf ={}     
+            subj_trials = [x for x in session_data.keys() if subj in x]
+            for trial in subj_trials:
+                trial_pdf[trial],_,_ = np.histogram2d(session_data[trial][traj_part].x,session_data[trial][traj_part].y,
+                                                   bins=(np.linspace(-150,150,n_bins+1),np.linspace(-0,200,n_bins+1)),density=True) 
+            subj_pdf[subj]= trial_pdf
+        session_pdfs[s] = subj_pdf
+    all_pdfs[tt] = session_pdfs
+
+all_avg_pdf = {} 
+for tt in trials_to_plot:
+    session_avg_pdf ={}
+    for s in sessions_to_plot:
+        subj_avg_pdfs = {} 
+        for subj in all_pdfs[tt][s].keys():
+            subj_data = np.dstack( all_pdfs[tt][s][subj].values())  
+            subj_avg_pdfs[subj] = np.mean(subj_data,axis =2)
+        session_pdf  = np.dstack(subj_avg_pdfs.values())
+        session_pdf_mean = np.mean(session_pdf,axis =2)
+        session_avg_pdf[s] = np.where( session_pdf_mean > 0,np.log10(session_pdf_mean),-10)
+    all_avg_pdf[tt] = session_avg_pdf
+
+for tt in all_avg_pdf.keys():
+    f, axs = plt.subplots(1,3)
+    sess_counter = 0
+    for s in all_avg_pdf[tt].keys():   
+        axs[sess_counter].imshow(all_avg_pdf[tt][s], cmap='hot')#,ax=ax)
+        axs[sess_counter].set_title(tt + ' ' + s)
+        sess_counter +=1
+        
+        
+# session_avg_pdf =  np.dstack(subj_avg_pdfs.values())  
+# session_avg_pdf_mean = np.mean(session_avg_pdf,axis =2)
+# f, ax = plt.subplots(1,1)
+# ax.imshow(session_avg_pdf_mean, cmap='hot')#,ax=ax)
+# #log_session_avg_pdf_mean = np.where( session_avg_pdf_mean > 0,np.log2(session_avg_pdf_mean),-2)
+# log_session_avg_pdf_mean = np.log( session_avg_pdf_mean, where = session_avg_pdf_mean > 0)
+
+# f, ax = plt.subplots(1,1)
+# log_session_avg_pdf_mean[log_session_avg_pdf_mean == 0] =0.0000001 
+# ax.imshow(log_session_avg_pdf_mean, cmap='hot')
+# ax.set_title('log')
+
+
+
+# hot = cm.get_cmap('hot',256)
+# new_colors =hot(np.linspace(0,1,256))
+# black = np.array([0,0,0,1])
+# new_colors[:1,:] = black
+# hotcmp  = ListedColormap(new_colors)
+# _#%%
+
+# session_avg_pdf =  np.dstack(subj_avg_pdfs.values())  
+# session_avg_pdf_mean = np.mean(session_avg_pdf,axis =2)
+# f, ax = plt.subplots(1,1)
+# ax.imshow(session_avg_pdf_mean, cmap=hotcmp)#,ax=ax)
+# log_session_avg_pdf_mean = np.where( session_avg_pdf_mean > 0,np.log(session_avg_pdf_mean),0)
+# f, ax = plt.subplots(1,1)
+# log_session_avg_pdf_mean[log_session_avg_pdf_mean == 0] = -0.0000001 
+# ax.imshow(log_session_avg_pdf_mean, cmap=hotcmp)
+# ax.set_title('log')
+
+
+
+
+# for trial in session_data.keys():
+#     trial_pdf[trial],_,_ = np.histogram2d(session_data[trial][traj_part].x,session_data[trial][traj_part].y,
+#                                        bins=(np.linspace(-150,150,n_bins+1),np.linspace(-0,200,n_bins+1))) 
+# pdf_arr = np.array(list(all_pdfs[tt][s].values()))
+# pdf_mean = pdf_arr.mean(axis=0)
+# pdf_log_mean = np.log(pdf_mean)
+# f, ax = plt.subplots(1,1)
+# ax.imshow(pdf_log_mean, cmap='hot')#,ax=ax)
+
+#%%
+trial_pdf2 ={}
 for trial in session_data.keys():
-    trial_pdf[trial],_,y_ = np.histogram2d(session_data[trial][traj_part].x,session_data[trial][traj_part].y,
-                                       bins=(np.linspace(-150,150,n_bins+1),np.linspace(-0,200,n_bins+1)),density =True) 
+    trial_pdf2[trial],_,_ = np.histogram2d(session_data[trial][traj_part].x,session_data[trial][traj_part].y,
+                                       bins=(np.linspace(-150,150,n_bins+1),np.linspace(-0,200,n_bins+1))) 
+pdf_arr2 = np.array(list(all_pdfs[tt][s].values()))
+pdf_mean2 = pdf_arr.mean(axis=0)
+pdf_log_mean2 = np.log(pdf_mean)
+f, ax = plt.subplots(1,1)
+ax.imshow(pdf_log_mean, cmap='hot')#,ax=ax)
+
+
+#%%
 
 
 
+x,_,_ =  np.histogram2d(session_data[trial][traj_part].x,session_data[trial][traj_part].y,
+                                   bins=(np.linspace(-150,150,n_bins+1),np.linspace(-0,200,n_bins+1)),density =True) 
+ 
+y,_,_ =  np.histogram2d(session_data[trial][traj_part].x,session_data[trial][traj_part].y,
+                                   bins=(np.linspace(-150,150,n_bins+1),np.linspace(-0,200,n_bins+1))) 
 
+f, axs = plt.subplots(1,2)
+axs[0].imshow(x, cmap='hot')#,ax=ax 
+axs[1].imshow(y, cmap='hot')#,ax=ax 
 
-
-
-
-
-
-
-
-
-
-
-
-
-#%% calculating trajectory length - normalise by distance between levers
-
-# CHECK need to crop traj so they end at the food magazine? maybe for correct trials - after succ trigger = go to food mag
-# for incorrect trials  - after 5 sec timeout? 
+    
+    #%% calculating trajectory length - normalise by distance between levers
+    
+    # CHECK need to crop traj so they end at the food magazine? maybe for correct trials - after succ trigger = go to food mag
+    # for incorrect trials  - after 5 sec timeout? 
 traj_distance, mean_traj_distance = dlc_func.calc_traj_length(trials_to_plot,sessions_to_plot,all_traj_by_trial,avg_all_norm_medians,traj_part)
 
 

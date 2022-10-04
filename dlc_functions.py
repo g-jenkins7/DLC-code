@@ -593,14 +593,16 @@ def get_distances(all_data,avg_all_norm_medians):
         if all_data[x].box_norm_medians:
             
             distances.loc[x,'lever_distance_x'] = all_data[x].box_norm_medians['l_lever_x'] - all_data[x].box_norm_medians['r_lever_x'] 
-            distances.loc[x,'box_distance_y'] = ((all_data[x].box_norm_medians['boxtopleft_y'] - all_data[x].box_norm_medians['boxbottomleft_y']) 
-                                                        + (all_data[x].box_norm_medians['boxtopright_y'] - all_data[x].box_norm_medians['boxbottomright_y']))/2
+            distances.loc[x,'box_distance_y'] = all_data[x].box_norm_medians['poke_y'] - ((all_data[x].box_norm_medians['l_foodmag_y']
+                                                        +  all_data[x].box_norm_medians['r_foodmag_y'])/2)
+            # distances.loc[x,'box_distance_y'] = ((all_data[x].box_norm_medians['poke_y'] - (all_data[x].box_norm_medians['l_foodmag_y']) 
+            #                                             + (all_data[x].box_norm_medians['boxtopright_y'] - all_data[x].box_norm_medians['boxbottomright_y']))/2
 
 
     avg_lever_distance_x = avg_all_norm_medians.l_lever_x -    avg_all_norm_medians.r_lever_x
 
-    avg_box_distance_y = ((avg_all_norm_medians.boxtopleft_y - avg_all_norm_medians.boxbottomleft_y)
-                            + (avg_all_norm_medians.boxtopright_y - avg_all_norm_medians.boxbottomright_y))/2
+    avg_box_distance_y = avg_all_norm_medians.poke_y - ((avg_all_norm_medians.l_foodmag_y +
+                            avg_all_norm_medians.r_foodmag_y)/2)
                                                                                                                         
 
     distances['scale_factor_x'] =    avg_lever_distance_x/ distances.lever_distance_x        
@@ -664,7 +666,7 @@ def normalise_and_track(all_data,traj_part,succ_extra_time,all_frame_times,exclu
             distances = get_distances(all_data,all_avg_norm_medians)
             dlc_data_scaled = dlc_data_norm.copy()
             dlc_data_scaled.loc[:,(traj_part,'x')] = (dlc_data_norm['head']['x'] * distances.loc[distances['files'] == tag].scale_factor_x[0])
-            #dlc_data_scaled.loc[:,(traj_part,'y')] = (dlc_data_norm['head']['y'] * distances.loc[distances['files'] == tag].scale_factor_y[0])
+            dlc_data_scaled.loc[:,(traj_part,'y')] = (dlc_data_norm['head']['y'] * distances.loc[distances['files'] == tag].scale_factor_y[0])
 
             if restrict_traj:
                 trajy = dlc_data_norm[traj_part].y.copy()
@@ -823,7 +825,11 @@ def collect_traj_by_trialtype(trials_to_analyse,sessions_to_analyse,all_data,mis
                       'go1_wronglp':'incorrect go single',
                       'go2_succ':  'success go double',
                       'go2_rtex': '\ufeffmax response time exceeded go double',
-                      'go2_wronglp': 'incorrect go double'}
+                      'go2_wronglp': 'incorrect go double',
+                      'ng1_succ': 'success no go single',
+                      'ng2_succ': 'success no go double',
+                      'ng1_fail':'incorrect no go trial single', 
+                      'ng2_fail':'incorrect no go trial double'}
     
     all_traj_by_trial = {}
     all_nose_nan_perc_trials = {}
@@ -991,9 +997,15 @@ def plot_trajectories(trials_to_plot, sessions_to_plot,traj_part,all_traj_by_tri
             plt.show()
 
 def plot_indv_trajectories(trials_to_plot,sessions_to_plot,animals_to_plot,traj_part,all_traj_by_trial,avg_all_norm_medians,num_traj,all_data,plot_by_traj):
-    traj_colors = ['grey','limegreen', 'darkgreen']
+    go_colors = ['grey','limegreen', 'darkgreen']
+    nogo_colors = ['grey','salmon', 'firebrick']
+    
     for tt in range(0,len(trials_to_plot)):
         trial_type_data= all_traj_by_trial[trials_to_plot[tt]]
+        if 'go' in tt:
+            traj_colors = go_colors
+        else:
+            traj_colors = nogo_colors
         for s in range(0,len(sessions_to_plot)):
             session_data = trial_type_data[sessions_to_plot[s]]
             for animal in animals_to_plot:
